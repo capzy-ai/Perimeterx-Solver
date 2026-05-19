@@ -58,7 +58,11 @@ This repo is the SDK-free path for everyone else.
 
 ## Captcha-specific questions
 
-**Why does _px3 expire so fast?** Newer high-security deployments rotate _px3 every ~60 seconds. Re-solve when it expires, or use the proxy variant with a custom HTTP client that refreshes inline.
+**Why isn't there a ProxyLess variant?** PerimeterX clearance cookies (`_px3` / `_px2` / `_pxhd`) are cryptographically bound to the IP they were issued to. A token solved on our pool IP would be rejected the moment your downstream client called the protected endpoint from your own IP. So we don't ship a ProxyLess variant for PerimeterX — supply your own sticky proxy and we'll mint the token on that IP. Calls to `AntiPerimeterXTaskProxyLess` are rejected with `ERROR_PROXY_REQUIRED`.
+
+**What proxy works for PerimeterX?** Residential, mobile, or static ISP — all fine. Datacenter proxies fail PerimeterX's press-and-hold validation every time because PerimeterX scores IP trust as a primary signal. Use a sticky session (~5–10 min stickiness) so the same IP is reused for the solve and your downstream call.
+
+**Why does _px3 expire so fast?** Newer high-security deployments rotate _px3 every ~60 seconds. Re-solve when it expires, or keep the same sticky proxy across solves so consecutive _px3 mints chain cleanly.
 
 ## Operational
 

@@ -4,8 +4,16 @@
  * Cost:   from $0.001 per solve (flat)
  * Speed:  ~10 seconds median
  *
+ * PerimeterX clearance cookies (_px3 / _px2 / _pxhd) are IP-bound — your
+ * proxy is REQUIRED, and there is no ProxyLess variant. Use the SAME
+ * sticky proxy your downstream HTTP client will replay the cookies on.
+ *
  * Run with (Node 18+):
  *   export CAPZY_KEY="capzy_xxxxxxxxxxxxxxxxxxxxxxxx"
+ *   export PROXY_HOST="gw.your-provider.com"
+ *   export PROXY_PORT="10000"
+ *   export PROXY_USER="your-user"
+ *   export PROXY_PASS="your-pass"
  *   node basic.js
  *
  * Uses the built-in global `fetch` — no dependencies, no npm install.
@@ -13,6 +21,13 @@
 
 const API_BASE = "https://api.capzy.ai";
 const CAPZY_KEY = process.env.CAPZY_KEY;
+
+// Sticky residential / mobile / static-ISP proxy. Datacenter IPs fail
+// PerimeterX's IP-trust scoring every time — don't bother.
+const PROXY_HOST = process.env.PROXY_HOST;
+const PROXY_PORT = parseInt(process.env.PROXY_PORT, 10);
+const PROXY_USER = process.env.PROXY_USER || "";
+const PROXY_PASS = process.env.PROXY_PASS || "";
 
 async function postJson(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -24,13 +39,21 @@ async function postJson(path, body) {
 }
 
 async function solve() {
-  // 1) Create the task.
+  // 1) Create the task — proxy is required for PerimeterX.
+  const task = {
+    type: "AntiPerimeterXTask",
+    websiteURL: "https://example.com",
+    proxyType: "http",
+    proxyAddress: PROXY_HOST,
+    proxyPort: PROXY_PORT,
+  };
+  if (PROXY_USER) {
+    task.proxyLogin = PROXY_USER;
+    task.proxyPassword = PROXY_PASS;
+  }
   const created = await postJson("/createTask", {
     clientKey: CAPZY_KEY,
-    task: {
-      "type": "AntiPerimeterXTaskProxyLess",
-      "websiteURL": "https://example.com"
-    },
+    task,
   });
   if (created.errorId) {
     throw new Error(`createTask: ${created.errorCode} — ${created.errorDescription}`);

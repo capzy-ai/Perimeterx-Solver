@@ -22,19 +22,23 @@ Every field you can pass to `POST /createTask` for this task type.
 
 | Field | Type | Required | Notes |
 |-------|------|:--------:|-------|
-| `type` | `string` | yes | AntiPerimeterXTaskProxyLess or AntiPerimeterXTask |
+| `type` | `string` | yes | `AntiPerimeterXTask` — the only supported variant. **There is no `AntiPerimeterXTaskProxyLess`.** PerimeterX clearance cookies (`_px3` / `_px2` / `_pxhd`) are cryptographically bound to the IP they were issued to, so the solve MUST happen on the same proxy your downstream session uses. |
 | `websiteURL` | `string` | yes | Full URL of the protected page |
 
 
-### Proxy fields (only for `AntiPerimeterXTask`)
+### Proxy fields — **required**
+
+PerimeterX is IP-bound: your proxy must be supplied on every call. Use a
+sticky session so the same IP can be reused for both the solve and your
+downstream HTTP client.
 
 | Field | Type | Required | Notes |
 |-------|------|:--------:|-------|
-| `proxyType` | `string` | no | http | https | socks4 | socks5 |
-| `proxyAddress` | `string` | no | IP or hostname of your proxy |
-| `proxyPort` | `integer` | no | Port number of your proxy |
-| `proxyLogin` | `string` | no | Optional — omit if your proxy doesn't require auth |
-| `proxyPassword` | `string` | no | Optional — omit if your proxy doesn't require auth |
+| `proxyType` | `string` | **yes** | `http` / `https` / `socks4` / `socks5` |
+| `proxyAddress` | `string` | **yes** | IP or hostname of your proxy. Residential / mobile / static-ISP only — datacenter IPs fail PerimeterX's IP-trust scoring. |
+| `proxyPort` | `integer` | **yes** | Port number of your proxy |
+| `proxyLogin` | `string` | no | Omit if your proxy doesn't require auth |
+| `proxyPassword` | `string` | no | Omit if your proxy doesn't require auth |
 
 
 ## Response
