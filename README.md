@@ -158,27 +158,40 @@ When the task is ready (`status: "ready"`), `solution` contains:
 | `cookie` | `string` | Ready-to-paste `Cookie:` header value (`_px3=...; _pxhd=...; _pxvid=...`). Domain intentionally omitted — it's a header value, not a jar entry. |
 | `cookies` | `array` | Structured `{name, value, domain, path}` array for customers building their own cookie jar. |
 | `userAgent` | `string` | User-Agent used during solve — must match on every replay request (clearance is UA-bound). |
+| `ipBound` | `boolean` | Always `true` for PerimeterX — the proof is tied to the solving IP; replays must come through the same proxy. |
 | `challengePresented` | `boolean` | `true` if the **Hold Captcha** (press-and-hold) widget rendered and we held it. `false` if our fingerprint passed silently. Either way the cookies are valid — this flag just tells you which code path minted them. |
 | `holdDurationSec` | `number` | Seconds we held the press-and-hold button (`8.5`–`11.0`). `0` when `challengePresented` is `false`. |
-| `ipBound` | `boolean` | Always `true` for PerimeterX — the proof is tied to the solving IP; replays must come through the same proxy. |
+| `holdStrategy` | `string` | `challengeTime` if we read PX's server-supplied hold duration from the bundle, `fallback-window` if we used the community-tuned 8.5–11s window. Diagnostic for monitoring per-deployment hook-hit rate. |
+| `challengeTimeMs` | `number \| null` | The actual server-supplied hold duration in milliseconds when `holdStrategy = challengeTime`. `null` on the fallback path. |
+| `collectorEvents` | `array` | POSTs to `collector-*.perimeterx.net/api/v[12]/collector/*` observed during the solve. Each entry: `{url, status, body_excerpt, at}`. PX fires these after press completion; the response says whether the press was accepted. Diagnostic — useful when a solve looks successful but downstream replay fails. |
+| `uuid` | `string` | The `_pxvid` visitor identifier PX bound the clearance to. **Only present when `challengePresented = true`.** The Hold Captcha mints `_px3` BOUND to this visitor — `_px3` + `_pxvid` + `_pxhd` are validated as a triple on every downstream request, so the customer's replay MUST use the same `_pxvid` for the clearance to validate. Pass it back in via the `uuid` task param on subsequent solves to keep the visitor consistent. |
+| `vid` | `string` | Secondary visitor identifier (`window._pxhc.vid` — sometimes set separately by the PX bundle, often identical to `uuid`). **Only present when `challengePresented = true`.** Pin alongside `uuid` for sites that enforce a separate vid via their PX integration. |
 
 ### Example
 
 ```json
 {
+  "errorId": 0,
   "status": "ready",
   "solution": {
-    "token": "<_px3 cookie value>",
-    "cookie": "_px3=<value>; _pxhd=<value>; _pxvid=<uuid>",
+    "token": "abcdef1234567890.xyz789.abc...",
+    "cookie": "_px3=abcdef1234567890.xyz789.abc...; _pxhd=hardened_device_cookie",
     "cookies": [
-      { "name": "_px3",   "value": "<value>", "domain": "<scope>", "path": "/" },
-      { "name": "_pxhd",  "value": "<value>", "domain": "<scope>", "path": "/" },
-      { "name": "_pxvid", "value": "<uuid>",  "domain": "<scope>", "path": "/" }
+      { "name": "_px3",   "value": "abcdef1234567890.xyz789.abc...",       "domain": ".example.com", "path": "/" },
+      { "name": "_pxvid", "value": "aeaa41ad-53c7-11f1-933e-72f891b6838a", "domain": ".example.com", "path": "/" },
+      { "name": "_pxhd",  "value": "hardened_device_cookie_value",         "domain": ".example.com", "path": "/" }
     ],
-    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ...",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "ipBound": true,
     "challengePresented": true,
-    "holdDurationSec": 9.4,
-    "ipBound": true
+    "holdDurationSec": 9.42,
+    "holdStrategy": "challengeTime",
+    "challengeTimeMs": 9100,
+    "collectorEvents": [
+      { "url": "https://collector-PXzC5j78di.perimeterx.net/api/v2/collector/s2s", "status": 200, "body_excerpt": "{\"do\":[]}", "at": 12.3 }
+    ],
+    "uuid": "aeaa41ad-53c7-11f1-933e-72f891b6838a",
+    "vid":  "aeaa41ad-53c7-11f1-933e-72f891b6838a"
   }
 }
 ```
