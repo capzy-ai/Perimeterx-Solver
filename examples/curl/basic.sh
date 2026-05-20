@@ -70,6 +70,13 @@ while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   STATUS=$(echo "$RESULT" | jq -r '.status // "unknown"')
   if [ "$STATUS" = "ready" ]; then
     echo "$RESULT" | jq '.solution'
+    # ─── How to use the result ────────────────────────────────────
+    # `solution.cookie` is a ready-to-paste Cookie: header string.
+    # Pull it with jq and replay through your SAME sticky proxy:
+    #
+    #   COOKIE=$(echo "$RESULT" | jq -r '.solution.cookie')
+    #   UA=$(echo "$RESULT" | jq -r '.solution.userAgent')
+    #   curl -x "$PROXY" -H "Cookie: $COOKIE" -H "User-Agent: $UA" "$TARGET_URL"
     exit 0
   fi
   if [ "$STATUS" != "processing" ]; then

@@ -4,7 +4,7 @@
 
 # PerimeterX / HUMAN Security Solver
 
-**Bypass PerimeterX press-and-hold. Returns _px3 / _px2 / _pxhd cookies.**
+**Solves the Hold Captcha (HUMAN Challenge press-and-hold). Returns _px3 / _px2 / _pxhd cookies.**
 
 [![Solve cost](https://img.shields.io/badge/from-%240.001%20%2F%20solve-%23ff5d2a)](https://capzy.ai/pricing)
 [![Speed](https://img.shields.io/badge/avg%20solve-~10%20seconds-%2322c55e)](https://capzy.ai/products/perimeterx)
@@ -154,19 +154,64 @@ When the task is ready (`status: "ready"`), `solution` contains:
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `token` | `string` | Highest-priority cookie value (_px3 if present, else _px2, else _pxhd) |
-| `cookies` | `array` | All _px* cookies in {name, value, domain, path} form for full session replay |
-| `userAgent` | `string` | User-Agent used during solve — match this on subsequent requests |
+| `token` | `string` | Highest-priority cookie value alone (_px3 if present, else _px2, else _pxhd). Use when you only need the proof string. |
+| `cookie` | `string` | Ready-to-paste `Cookie:` header value (`_px3=...; _pxhd=...; _pxvid=...`). Domain intentionally omitted — it's a header value, not a jar entry. |
+| `cookies` | `array` | Structured `{name, value, domain, path}` array for customers building their own cookie jar. |
+| `userAgent` | `string` | User-Agent used during solve — must match on every replay request (clearance is UA-bound). |
+| `challengePresented` | `boolean` | `true` if the **Hold Captcha** (press-and-hold) widget rendered and we held it. `false` if our fingerprint passed silently. Either way the cookies are valid — this flag just tells you which code path minted them. |
+| `holdDurationSec` | `number` | Seconds we held the press-and-hold button (`8.5`–`11.0`). `0` when `challengePresented` is `false`. |
+| `ipBound` | `boolean` | Always `true` for PerimeterX — the proof is tied to the solving IP; replays must come through the same proxy. |
+
+### Example
+
+```json
+{
+  "status": "ready",
+  "solution": {
+    "token": "<_px3 cookie value>",
+    "cookie": "_px3=<value>; _pxhd=<value>; _pxvid=<uuid>",
+    "cookies": [
+      { "name": "_px3",   "value": "<value>", "domain": "<scope>", "path": "/" },
+      { "name": "_pxhd",  "value": "<value>", "domain": "<scope>", "path": "/" },
+      { "name": "_pxvid", "value": "<uuid>",  "domain": "<scope>", "path": "/" }
+    ],
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ...",
+    "challengePresented": true,
+    "holdDurationSec": 9.4,
+    "ipBound": true
+  }
+}
+```
 
 ### How to use the result
 
-Set ALL the returned cookies on your HTTP client and reuse the User-Agent. _px3 rotates every ~60 seconds — re-solve when it expires.
+Three flavours of the same proof are returned — pick whichever fits your client:
+
+```python
+# Drop-in (`requests` / `httpx`):
+headers = {
+    "Cookie": solution["cookie"],
+    "User-Agent": solution["userAgent"],
+}
+resp = requests.get(target_url, headers=headers, proxies=your_proxy)
+
+# Or set ALL structured cookies on a jar:
+for c in solution["cookies"]:
+    session.cookies.set(c["name"], c["value"])
+
+# Or token-only (when you just need the proof):
+headers = {"Cookie": f"_px3={solution['token']}"}
+```
+
+Replay MUST come through the same proxy you supplied at solve time, with the same User-Agent. `_px3` rotates every ~60 seconds on newer deployments — re-solve when it expires.
 
 ## Features
 
+- **Solves Hold Captcha** (HUMAN Challenge) — Bezier-curve approach, 8.5–11s hold, cursor micro-jitter during the hold window
 - Returns _px3 (priority) → _px2 → _pxhd with full _px* cookie set
+- Ready-to-paste `cookie` header string **plus** structured `cookies` array
+- `challengePresented` field tells you whether the press-and-hold widget actually rendered, or whether the cookies came from a silent fingerprint pass
 - User-Agent capture for session continuity
-- Handles press-and-hold and behavioral-only variants
 
 ## FAQ
 

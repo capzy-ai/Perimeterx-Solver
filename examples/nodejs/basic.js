@@ -80,6 +80,27 @@ async function solve() {
 (async () => {
   const solution = await solve();
   console.log("solution:", solution);
+  // ─── Example solution shape ─────────────────────────────────
+  // {
+  //   token:              "<_px3 cookie value>",
+  //   cookie:             "_px3=<value>; _pxhd=<value>; _pxvid=<uuid>",
+  //   cookies:            [{ name: "_px3", value: "...", domain: "...", path: "/" }, ...],
+  //   userAgent:          "Mozilla/5.0 (...) Chrome/... Safari/...",
+  //   challengePresented: true,   // Hold Captcha widget rendered + held
+  //   holdDurationSec:    9.4,    // 0 if challengePresented is false
+  //   ipBound:            true
+  // }
+  //
   // ─── How to use the result ──────────────────────────────────
-  // Set ALL the returned cookies on your HTTP client and reuse the User-Agent. _px3 rotates every ~60 seconds — re-solve when it expires.
+  // Drop-in — paste `cookie` straight into a Cookie: header:
+  //
+  //   const headers = {
+  //     "Cookie":     solution.cookie,
+  //     "User-Agent": solution.userAgent,
+  //   };
+  //   await fetch(targetUrl, { headers, agent: yourProxyAgent });
+  //
+  // Replay MUST come through the SAME proxy you supplied at solve
+  // time (clearance is IP+UA bound). `_px3` rotates every ~60s on
+  // newer deployments — re-solve when it expires.
 })();
