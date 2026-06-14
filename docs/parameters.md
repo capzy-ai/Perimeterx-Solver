@@ -138,6 +138,28 @@ headers = {"Cookie": f"_px3={solution['token']}"}
 
 Replay MUST come through the same proxy you supplied at solve time, with the same User-Agent. `_px3` rotates every ~60 seconds on newer deployments — re-solve when it expires.
 
+### Keeping a session alive (avoiding repeat challenges)
+
+PerimeterX re-scores **every** request, so a valid clearance cookie alone won't
+carry a session that still looks automated. To browse many pages without
+re-triggering the press-and-hold:
+
+1. **Replay from a normal client.** An automation-flagged browser
+   (`navigator.webdriver = true`, CDP/Playwright artifacts) gets re-challenged on
+   nearly every load *even with a valid `_px3`/`_px2`*, because PX re-runs its
+   client fingerprint each page. A plain HTTP client or a non-instrumented
+   browser does not.
+2. **Pin one visitor.** Pass the **same `uuid` (`_pxvid`) on every solve** and
+   keep that `_pxvid` in your downstream cookie jar. Re-use the `uuid` the
+   solution returns on the next `createTask`. If every solve mints a *fresh*
+   `_pxvid`, PerimeterX sees a single IP cycling through many "new visitors" in
+   seconds — a strong bot signal that accelerates blocking.
+3. **Same sticky IP + same returned `userAgent`** for the whole session — both
+   are part of what the clearance is bound to.
+
+With these in place a long session is challenged only occasionally, and a single
+re-solve (with the same `uuid`) clears it.
+
 ### Error
 
 ```json

@@ -68,6 +68,13 @@ This repo is the SDK-free path for everyone else.
 
 **What are `uuid` / `vid` and do I need them?** Strongly recommended for any site that enforces session continuity (Microsoft signup, EA, retail signups). `uuid` is the `_pxvid` cookie value on the target page — find it in DevTools → Application → Cookies → `_pxvid`. Pass it on `createTask` and Capzy pre-seeds it on the solver's browser context BEFORE navigation, so PerimeterX issues clearance tied to YOUR visitor session. Without it our token belongs to a session PerimeterX won't recognize when your client replays. `vid` is sometimes distinct from `uuid` (read from `window._pxhc.vid`); if you only have `uuid` we use it for both.
 
+**I solved once but get re-challenged when I browse more pages — how do I keep a session alive?** PerimeterX re-scores *every* request, so a valid `_px3`/`_px2` alone won't carry a session that looks automated. Three things keep a long session clean:
+1. **Replay from a normal client.** An automation-flagged browser (`navigator.webdriver = true`, CDP/Playwright artifacts) is re-challenged on essentially every page load *even with a valid clearance cookie*, because PX re-runs its client fingerprint each load. A plain HTTP client (`requests`/`httpx`) or a non-instrumented browser is not.
+2. **Pin ONE visitor.** Pass the **same `uuid` (`_pxvid`) on every solve**, and keep that `_pxvid` in your downstream cookie jar. If each solve mints a *fresh* `_pxvid`, PerimeterX sees one IP cycling through many "new visitors" in seconds — that is itself a strong bot signal that *accelerates* re-blocking. Reuse the `uuid` the solution returns on your next `createTask` so the clearance always binds to the same visitor.
+3. **Stay on the same sticky IP and reuse the returned `userAgent`.** Both are part of what the clearance is bound to.
+
+Do these and a continuous session is challenged only occasionally; when it is, a single re-solve **with the same `uuid`** clears it and it stays clear. In our testing, removing those two signals (the automation flag and the per-solve visitor churn) is the difference between being re-challenged on almost every page and being challenged only rarely.
+
 **I tried passing the iframe URL (`iframe.hsprotect.net/...`) and it fails immediately — why?** That URL is the PerimeterX challenge-iframe, not the protected page. Hitting it directly returns a ~2 KB empty stub because the press-and-hold widget only renders inside the parent site's DOM context. Pass the URL of the page the user is actually trying to access (the parent page) as `websiteURL`. The solver now rejects iframe URLs with `ERROR_INVALID_PARAMS` so the wrong input is obvious on the first try (and refunded).
 
 ## Operational
