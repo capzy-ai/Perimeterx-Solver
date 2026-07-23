@@ -182,6 +182,135 @@ stable machine-readable identifier. Common codes:
 - `ERROR_CAPTCHA_UNSOLVABLE` — solver gave up (auto-refunded)
 - `ERROR_INVALID_PARAMS` — most commonly returned when `websiteURL` is the PerimeterX challenge-iframe URL (`iframe.hsprotect.net` / `*.px-cdn.net`) instead of the parent protected page. Refunded.
 
+## Block-replay variant — `AntiPerimeterXBlockTask`
+
+A second, deterministic path for PerimeterX. Instead of navigating fresh and
+hoping a press-and-hold appears, **you hit the 403 PerimeterX block yourself and
+hand us that block.** We adopt your exact PX session, solve the press-and-hold,
+and return clearance bound to your own `_pxvid` so it validates on replay.
+Solved in a real browser for now.
+
+> **Proxy is required — there is no working ProxyLess variant.**
+> `AntiPerimeterXBlockTaskProxyLess` exists only to return an IP-bound
+> directive telling you to use the proxy variant. Clearance is bound to the
+> exact IP the 403 was hit with, so the solve MUST run on that same proxy.
+
+### When to reach for this
+
+Use block-replay instead of the standard `AntiPerimeterXTask` when a fresh
+navigation through your IP **silent-passes** (there's nothing for us to trigger,
+so a fresh nav never surfaces a press-and-hold), or when you need clearance
+bound to **your existing session** rather than a new one. It's deterministic
+because YOU supply the live 403 — we don't have to gamble that PerimeterX
+escalates for us.
+
+### Required + optional fields
+
+| Field | Type | Required | Notes |
+|-------|------|:--------:|-------|
+| `type` | `string` | yes | `AntiPerimeterXBlockTask`. The proxied, sellable variant. `AntiPerimeterXBlockTaskProxyLess` only returns an IP-bound directive ("use the proxy variant"). |
+| `websiteURL` | `string` | yes | Full URL of the **protected page that returned the 403** PerimeterX block. |
+| `userAgent` | `string` | **yes** | The exact User-Agent you used when you hit the 403. Clearance is UA-bound — replay MUST use this same value. |
+| `blockData` | `string` | **yes** | The raw body of the 403 PerimeterX response — the HTML block page OR the XHR/JSON block payload. This carries the session vid/uuid we adopt. |
+| `cookies` | `array \| object \| string` | **yes** | Cookies from the blocked response. Accepts an array of `{name, value, domain?, path?}`, a `{name: value}` map, or a raw `"a=b; c=d"` Cookie-header string. |
+| `blockMode` | `string` | optional | `html` / `xhr` / `json` / `auto`. How to parse `blockData`. Default `auto` — we detect HTML vs XHR/JSON for you. |
+| `pxAppId` / `appId` | `string` | optional | PerimeterX tenant ID (e.g. `PXzC5j78di`). Overrides the value parsed from `blockData`. |
+| `uuid` / `pxVid` / `_pxvid` | `string` | optional | Visitor `_pxvid` (UUID). Overrides the value parsed from `blockData`. |
+| `vid` | `string` | optional | Secondary visitor identifier. Overrides the parsed value. |
+| `_pxhd` / `pxhd` | `string` | optional | Hardened-device cookie value. Overrides the parsed value. |
+
+### Proxy fields — **required**
+
+Same as the standard task — the clearance is IP-bound to the proxy the 403 was
+hit with, so you must supply that exact proxy on the call.
+
+| Field | Type | Required | Notes |
+|-------|------|:--------:|-------|
+| `proxyType` | `string` | **yes** | `http` / `https` / `socks4` / `socks5` |
+| `proxyAddress` | `string` | **yes** | IP or hostname of your proxy — the SAME proxy you hit the 403 with. |
+| `proxyPort` | `integer` | **yes** | Port number of your proxy |
+| `proxyLogin` | `string` | **yes** | Login for your proxy |
+| `proxyPassword` | `string` | **yes** | Password for your proxy |
+
+### `POST /createTask` example
+
+```json
+{
+  "clientKey": "capzy_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "task": {
+    "type": "AntiPerimeterXBlockTask",
+    "websiteURL": "https://example.com/protected",
+    "proxyType": "http",
+    "proxyAddress": "gw.your-proxy.com",
+    "proxyPort": 10000,
+    "proxyLogin": "your-user",
+    "proxyPassword": "your-pass",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "blockMode": "auto",
+    "blockData": "<!doctype html><html><head><title>Access to this page has been denied</title>...window._pxAppId='PXzC5j78di';window._pxUuid='aeaa41ad-53c7-11f1-933e-72f891b6838a';window._pxVid='aeaa41ad-53c7-11f1-933e-72f891b6838a';...</html>",
+    "cookies": "_pxvid=aeaa41ad-53c7-11f1-933e-72f891b6838a; _pxhd=hardened_device_cookie_value; pxcts=ab12cd34-..."
+  }
+}
+```
+
+### `POST /getTaskResult` when ready
+
+```json
+{
+  "errorId": 0,
+  "status":  "ready",
+  "solution": {
+    "token": "abcdef1234567890.xyz789.abc...",
+    "cookie": "_px3=abcdef1234567890.xyz789.abc...; _pxhd=hardened_device_cookie",
+    "cookies": [
+      { "name": "_px3",   "value": "abcdef1234567890.xyz789.abc...",       "domain": ".example.com", "path": "/" },
+      { "name": "_pxvid", "value": "aeaa41ad-53c7-11f1-933e-72f891b6838a", "domain": ".example.com", "path": "/" },
+      { "name": "_pxhd",  "value": "hardened_device_cookie_value",         "domain": ".example.com", "path": "/" }
+    ],
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "uuid": "aeaa41ad-53c7-11f1-933e-72f891b6838a",
+    "vid":  "aeaa41ad-53c7-11f1-933e-72f891b6838a",
+    "challengePresented": true,
+    "holdDurationSec": 9.42,
+    "holdStrategy": "challengeTime",
+    "challengeTimeMs": 9100,
+    "collectorEvents": [
+      { "url": "https://collector-PXzC5j78di.perimeterx.net/api/v2/collector/s2s", "status": 200, "body_excerpt": "{\"do\":[]}", "at": 12.3 }
+    ],
+    "ipBound": true,
+    "consumedBlock": true,
+    "blockAppId": "PXzC5j78di",
+    "blockHostUrl": "https://example.com/protected"
+  }
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `token` | `string` | The `_px3` / `_px2` clearance value alone. Use when you only need the proof string. |
+| `cookie` | `string` | Ready-to-paste `Cookie:` header value with the `_px*` cookies joined. |
+| `cookies` | `array` | Structured `{name, value, domain, path}` array for building your own cookie jar. |
+| `userAgent` | `string` | User-Agent used during solve — must match on every replay request (clearance is UA-bound). |
+| `uuid` | `string` | The `_pxvid` visitor identifier the clearance is bound to — the one we adopted from your block. Pin it on your replay session. |
+| `vid` | `string` | Secondary visitor identifier (`window._pxhc.vid`), often identical to `uuid`. |
+| `challengePresented` | `boolean` | `true` if the Hold Captcha (press-and-hold) rendered and we held it. |
+| `holdDurationSec` | `number` | Seconds we held the press-and-hold button (`0` when `challengePresented` is `false`). |
+| `holdStrategy` | `string` | `challengeTime` if we read PX's server-supplied hold duration from the bundle, else `fallback-window`. |
+| `challengeTimeMs` | `number \| null` | The server-supplied hold duration (ms) when `holdStrategy = challengeTime`; `null` on the fallback path. |
+| `collectorEvents` | `array` | POSTs to `collector-*.perimeterx.net/api/v[12]/collector/*` observed during the solve. Each entry: `{url, status, body_excerpt, at}`. |
+| `ipBound` | `boolean` | Always `true`. Replays MUST come through the same proxy you supplied at solve time. |
+| `consumedBlock` | `boolean` | Always `true` for this task — confirms we adopted the 403 block you supplied rather than navigating fresh. |
+| `blockAppId` | `string` | The PerimeterX tenant ID parsed from the block you supplied. |
+| `blockHostUrl` | `string` | The host URL the block was attributed to. |
+
+### Block-replay flow
+
+1. **Make your own request** to the protected page through your proxy.
+2. **When you get a 403 PerimeterX block**, capture: the response BODY (→ `blockData`), the response COOKIES (→ `cookies`), and remember the proxy + User-Agent you used.
+3. **Submit `AntiPerimeterXBlockTask`** (`createTask`) with `websiteURL` + proxy + `userAgent` + `blockData` + `cookies`.
+4. **Poll `getTaskResult`.** You get back clearance cookies + the `userAgent` + `uuid`/`vid`.
+5. **Replay** the returned cookies + `userAgent` on the SAME proxy IP. Pin your session to the returned `_pxvid` / `uuid`.
+
 ## Naming conventions
 
 Field names are camelCase on the wire (`websiteURL`, `websiteKey`,

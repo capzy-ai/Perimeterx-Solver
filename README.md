@@ -42,7 +42,8 @@ PerimeterX (now HUMAN Security) is a bot protection platform that scores request
 
 | Task type | When to use | Cost / solve |
 |-----------|-------------|-------------:|
-| `AntiPerimeterXTask`                       | The only supported variant — your residential / mobile / ISP proxy required | **$0.001**   |
+| `AntiPerimeterXTask`                       | The standard variant — navigate fresh and solve; your proxy required | **$0.001**   |
+| `AntiPerimeterXBlockTask`                  | Block-replay — you hand us the 403 you hit; clearance bound to your own session; your proxy required | **$0.001**   |
 
 > **There is no `AntiPerimeterXTaskProxyLess`.** PerimeterX clearance
 > cookies (`_px3` / `_px2` / `_pxhd`) are cryptographically bound to the
@@ -146,6 +147,44 @@ Use a **sticky** proxy session so the IP doesn't rotate between the
 solve and your downstream call. Residential / mobile / static ISP all
 work; datacenter IPs fail PerimeterX's IP-trust scoring every time.
 
+Full reference in [`docs/parameters.md`](docs/parameters.md).
+
+## Block-replay — `AntiPerimeterXBlockTask`
+
+A second, deterministic path. Instead of navigating fresh and hoping a
+press-and-hold appears, **you hit the 403 PerimeterX block yourself and hand us
+that block.** We adopt your exact PX session, solve the press-and-hold, and
+return clearance bound to your own `_pxvid` so it validates on replay. Reach for
+it when a fresh navigation through your IP silent-passes (nothing to trigger),
+or when you need clearance bound to your existing session.
+
+Capture three things from your blocked request: the response **body**
+(→ `blockData`), the response **cookies** (→ `cookies`), and the **proxy +
+User-Agent** you used. Then:
+
+```json
+{
+  "clientKey": "capzy_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "task": {
+    "type": "AntiPerimeterXBlockTask",
+    "websiteURL": "https://example.com/protected",
+    "proxyType": "http",
+    "proxyAddress": "gw.your-proxy.com",
+    "proxyPort": 10000,
+    "proxyLogin": "your-user",
+    "proxyPassword": "your-pass",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "blockData": "<!doctype html><html>...Access to this page has been denied...</html>",
+    "cookies": "_pxvid=aeaa41ad-53c7-11f1-933e-72f891b6838a; _pxhd=hardened_device_cookie_value"
+  }
+}
+```
+
+`AntiPerimeterXBlockTaskProxyLess` only returns an IP-bound directive telling you
+to use the proxy variant. The solution carries the same `token` / `cookie` /
+`cookies` / `userAgent` / `uuid` / `vid` fields as the standard task, plus
+`consumedBlock: true`, `blockAppId`, and `blockHostUrl`. Replay the returned
+cookies + `userAgent` on the SAME proxy IP, pinned to the returned `_pxvid`.
 Full reference in [`docs/parameters.md`](docs/parameters.md).
 
 ## Response shape
