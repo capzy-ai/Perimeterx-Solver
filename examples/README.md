@@ -26,25 +26,3 @@ Capzy HTTP API. Three languages, same two-step protocol:
 
 Each example is fully self-contained and ~50 lines. No SDK, no client
 library, no abstraction between you and the API.
-
-## Block-replay (consume-the-block) — full GNC walkthrough
-
-`AntiPerimeterXBlockTask` is the deterministic way to solve PerimeterX: instead
-of letting us navigate fresh and hope a press-and-hold appears, **you** make the
-request, hit the 403 block yourself, and hand us that exact block. We adopt your
-session, solve the press-and-hold, and return clearance bound to your own
-`_pxvid` — so it validates when you replay it.
-
-These run end-to-end against the live, PerimeterX-protected **gnc.com**:
-fetch the page through your proxy → capture the 403 → solve → replay → confirm a
-`200`.
-
-| Language     | File                                                       |
-|--------------|------------------------------------------------------------|
-| **Python**   | [`python/gnc_block_replay.py`](python/gnc_block_replay.py) |
-| **Node.js**  | [`nodejs/gnc_block_replay.js`](nodejs/gnc_block_replay.js) (`npm install undici`) |
-
-Use the SAME sticky proxy port and `User-Agent` for the fetch, the solve, and
-the replay — PerimeterX clearance is IP- and UA-bound. There is no curl version:
-the flow has to capture a response body and resubmit it, which a shell one-liner
-does not do cleanly.
